@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>USV Obstacle Perception & Tracking</title>
+  <meta name="description" content="An end-to-end uncrewed surface vessel (USV) perception pipeline: semantic segmentation (water/sky/obstacle) plus a from-scratch Kalman/SORT tracker, running on real maritime video at ~69 FPS." />
+
+  <!-- Open Graph / LinkedIn / social link previews -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://bmmcalonge.github.io/usv-perception-tracking-web/" />
+  <meta property="og:title" content="Maritime Obstacle Perception: Segmentation + Kalman/SORT Tracking" />
+  <meta property="og:description" content="An end-to-end USV perception pipeline: semantic segmentation (water/sky/obstacle) plus a from-scratch Kalman/SORT tracker, running on real maritime video at ~69 FPS." />
+  <meta property="og:image" content="https://bmmcalonge.github.io/usv-perception-tracking-web/assets/tracking_demo_frame.jpg" />
+  <meta property="og:image:width" content="1278" />
+  <meta property="og:image:height" content="958" />
+
+  <!-- Twitter / X card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Maritime Obstacle Perception: Segmentation + Kalman/SORT Tracking" />
+  <meta name="twitter:description" content="An end-to-end USV perception pipeline: semantic segmentation plus a from-scratch Kalman/SORT tracker, running on real maritime video at ~69 FPS." />
+  <meta name="twitter:image" content="https://bmmcalonge.github.io/usv-perception-tracking-web/assets/tracking_demo_frame.jpg" />
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Georgia', serif;
+      font-size: 16px;
+      line-height: 1.7;
+      color: #222;
+      background: #fff;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 3.5rem 0 2rem;
+      border-bottom: 1px solid #ddd;
+    }
+    header h1 {
+      font-size: 1.9rem;
+      font-weight: normal;
+      line-height: 1.3;
+      margin-bottom: .6rem;
+    }
+    .author-line {
+      font-size: .9rem;
+      color: #555;
+      font-family: system-ui, sans-serif;
+    }
+    .tag-row {
+      margin-top: .8rem;
+      font-size: .78rem;
+      font-family: system-ui, sans-serif;
+      color: #666;
+      letter-spacing: .03em;
+    }
+    .tag-row span { margin-right: .6rem; }
+
+    /* ── Sections ── */
+    section { padding: 2.2rem 0; border-bottom: 1px solid #eee; }
+    section:last-of-type { border-bottom: none; }
+
+    h2 {
+      font-size: 1.1rem;
+      font-weight: bold;
+      font-family: system-ui, sans-serif;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #444;
+      margin-bottom: 1rem;
+    }
+
+    p { margin-bottom: .9rem; }
+    p:last-child { margin-bottom: 0; }
+
+    /* ── Results row ── */
+    .results-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem 2.5rem;
+      font-family: system-ui, sans-serif;
+      margin: 1rem 0;
+    }
+    .result-item .val {
+      font-size: 1.7rem;
+      font-weight: 700;
+      color: #111;
+      line-height: 1;
+    }
+    .result-item .desc {
+      font-size: .78rem;
+      color: #666;
+      margin-top: .15rem;
+    }
+
+    /* ── Pipeline ── */
+    .pipeline {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding: 1rem 0;
+      font-family: system-ui, sans-serif;
+      font-size: .82rem;
+    }
+    .pipe-box {
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: .45rem .8rem;
+      text-align: center;
+      white-space: nowrap;
+      background: #fafafa;
+    }
+    .pipe-box small { display: block; color: #888; font-size: .72rem; margin-top: .1rem; }
+    .pipe-arrow { color: #aaa; font-size: 1.1rem; flex-shrink: 0; }
+
+    /* ── Two-column layout ── */
+    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+    @media (max-width: 600px) { .cols { grid-template-columns: 1fr; } }
+
+    /* ── Param table ── */
+    table { width: 100%; border-collapse: collapse; font-family: system-ui, sans-serif; font-size: .88rem; }
+    td { padding: .4rem 0; border-bottom: 1px solid #f0f0f0; }
+    td:last-child { text-align: right; color: #333; }
+    td:first-child { color: #666; }
+
+    /* ── Augmentation list ── */
+    .aug-list { font-family: system-ui, sans-serif; font-size: .85rem; color: #444; }
+    .aug-list li { list-style: none; padding: .2rem 0; }
+    .aug-list li::before { content: "— "; color: #aaa; }
+
+    /* ── Images ── */
+    .img-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .8rem; margin: 1rem 0; }
+    @media (max-width: 600px) { .img-row { grid-template-columns: 1fr; } }
+    .img-row figure { margin: 0; }
+    .img-row img { width: 100%; display: block; }
+    .img-row figcaption { font-size: .75rem; color: #666; font-family: system-ui, sans-serif; margin-top: .3rem; }
+
+    .compare-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+    @media (max-width: 600px) { .compare-row { grid-template-columns: 1fr; } }
+    .compare-row figure { margin: 0; }
+    .compare-row img { width: 100%; display: block; }
+    .compare-row figcaption { font-size: .78rem; color: #555; font-family: system-ui, sans-serif; margin-top: .3rem; }
+
+    .full-img { margin: 1rem 0; }
+    .full-img img { width: 100%; display: block; }
+    .full-img figcaption { font-size: .78rem; color: #666; font-family: system-ui, sans-serif; margin-top: .3rem; }
+
+    /* ── Video ── */
+    .video-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+    @media (max-width: 600px) { .video-row { grid-template-columns: 1fr; } }
+    .video-row figure { margin: 0; }
+    .video-row video { width: 100%; display: block; }
+    .video-row figcaption { font-size: .78rem; color: #555; font-family: system-ui, sans-serif; margin-top: .3rem; }
+
+    /* ── Charts ── */
+    .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 1rem 0; }
+    @media (max-width: 600px) { .chart-row { grid-template-columns: 1fr; } }
+
+    /* ── Color palette ── */
+    .palette { display: flex; gap: 1.2rem; font-family: system-ui, sans-serif; font-size: .83rem; color: #444; margin: .5rem 0; }
+    .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: middle; margin-right: .3rem; }
+
+    /* ── Limitations ── */
+    .lim-list { font-family: system-ui, sans-serif; font-size: .88rem; color: #444; }
+    .lim-list li { list-style: none; padding: .4rem 0; border-bottom: 1px solid #f5f5f5; padding-left: 1.2rem; position: relative; }
+    .lim-list li::before { content: "·"; position: absolute; left: 0; color: #aaa; font-size: 1.2rem; line-height: 1.5; }
+
+    /* ── Footer ── */
+    footer { padding: 2rem 0; font-family: system-ui, sans-serif; font-size: .82rem; color: #888; }
+    footer a { color: #555; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>USV Obstacle Perception & Tracking</h1>
+  <p class="author-line">Brian Munoz Calonge</p>
+  <div class="tag-row">
+    <span>PyTorch</span><span>U-Net / ResNet-34</span><span>MaSTr1325</span><span>MODD2</span><span>Kalman Filter</span><span>SORT</span>
+  </div>
+</header>
+
+<!-- ── Overview ── -->
+<section>
+  <h2>Overview</h2>
+  <p>
+    An end-to-end pipeline for detecting and tracking floating obstacles from a USV camera.
+    The design splits the problem in two: a learned segmenter handles the pixel-level
+    classification (training data and model), and a classical
+    Kalman/SORT tracker handles temporal association.
+  </p>
+  <p>
+    The segmenter was trained on MaSTr1325 (1325 labeled coastal images, 3 classes).
+    The tracker was evaluated on MODD2 stereo sequences at ~70 FPS end-to-end on a single GPU.
+  </p>
+
+  <div class="results-row">
+    <div class="result-item"><div class="val">0.991</div><div class="desc">Val mIoU (MaSTr1325)</div></div>
+    <div class="result-item"><div class="val">0.979</div><div class="desc">Obstacle IoU</div></div>
+    <div class="result-item"><div class="val">0.996</div><div class="desc">Water IoU</div></div>
+    <div class="result-item"><div class="val">0.997</div><div class="desc">Sky IoU</div></div>
+    <div class="result-item"><div class="val">~70</div><div class="desc">FPS end-to-end (consumer GPU)</div></div>
+  </div>
+</section>
+
+<!-- ── Pipeline ── -->
+<section>
+  <h2>Pipeline</h2>
+  <div class="pipeline">
+    <div class="pipe-box">Camera frame<small>1278 × 958</small></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-box">Segmentation<small>U-Net / ResNet-34</small></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-box">Obstacle mask<small>3-class labels</small></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-box">Box detection<small>Connected components</small></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-box">Kalman / SORT<small>IoU + Hungarian</small></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-box">Tracked obstacles<small>ID + trajectory</small></div>
+  </div>
+
+  <p>
+    The segmenter labels every pixel as obstacle, water, or sky. Because MaSTr1325's obstacle
+    class includes shoreline and piers, a geometric filter isolates floating obstacles.
+    Two modes are used depending on scene: <em>enclosed</em> keeps only blobs with open water
+    directly above them (the defining signature of a fully floating obstacle, e.g. a buoy in
+    open water); <em>adjacent</em> keeps blobs that border water on any side, which also catches
+    vessels partially near a coastline. Both modes drop sky-only regions and wide coast bands
+    via a max-width fraction threshold.
+  </p>
+
+  <div class="palette">
+    <span><span class="swatch" style="background:#dc0000"></span>Obstacle</span>
+    <span><span class="swatch" style="background:#007896"></span>Water</span>
+    <span><span class="swatch" style="background:#a0c8dc"></span>Sky</span>
+  </div>
+</section>
+
+<!-- ── Training ── -->
+<section>
+  <h2>Training</h2>
+
+  <div class="cols">
+    <div>
+      <p>
+        <strong>Architecture:</strong> U-Net decoder with a ResNet-34 encoder pretrained on ImageNet,
+        via <code>segmentation_models_pytorch</code>. ImageNet pretraining means the encoder
+        already extracts useful low-level features before seeing any maritime data,
+        so ~1125 training images (85% of the dataset) are enough.
+      </p>
+      <p>
+        ResNet-34 (~21 M parameters) was chosen over larger models to meet the
+        real-time throughput requirement of a USV perception stack. Also, U-Net's skip connections
+        preserve the fine spatial detail needed for sharp water/obstacle boundaries at the pixel level.
+      </p>
+
+      <p style="margin-top:1rem;"><strong>Augmentation (train only):</strong></p>
+      <ul class="aug-list">
+        <li>Horizontal flip &nbsp;<em>p = 0.5</em></li>
+        <li>Brightness / contrast &nbsp;<em>p = 0.3</em></li>
+        <li>Hue / saturation / value &nbsp;<em>p = 0.2</em></li>
+        <li>Gaussian noise &nbsp;<em>p = 0.15</em></li>
+      </ul>
+    </div>
+
+    <div>
+      <table>
+        <tbody>
+          <tr><td>Framework</td><td>PyTorch</td></tr>
+          <tr><td>Input size</td><td>512 × 384</td></tr>
+          <tr><td>Batch size</td><td>8</td></tr>
+          <tr><td>Epochs</td><td>40 (~10 min on single GPU)</td></tr>
+          <tr><td>Optimizer</td><td>AdamW</td></tr>
+          <tr><td>Learning rate</td><td>3 × 10⁻⁴</td></tr>
+          <tr><td>Weight decay</td><td>1 × 10⁻⁴</td></tr>
+          <tr><td>LR schedule</td><td>Cosine annealing</td></tr>
+          <tr><td>Loss</td><td>Cross-entropy</td></tr>
+          <tr><td>Train / val</td><td>85 % / 15 % (fixed seed)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="chart-row" style="margin-top:1.5rem;">
+    <div><canvas id="chartLoss" height="220"></canvas></div>
+    <div><canvas id="chartIoU" height="220"></canvas></div>
+  </div>
+  <p style="font-size:.8rem;color:#888;font-family:system-ui,sans-serif;margin-top:.5rem;">
+    mIoU plateaus above 0.99 by epoch 25. The dip at epoch 7 is a cosine LR artifact
+    interacting with aggressive augmentation early in training.
+  </p>
+</section>
+
+<!-- ── Segmentation results ── -->
+<section>
+  <h2>Segmentation</h2>
+  <p>Predictions blended over MaSTr1325 validation images (red = obstacle, blue = water, pale blue = sky).</p>
+  <div class="img-row">
+    <figure>
+      <img src="assets/pred_0003.jpg" alt="Coastal scene" loading="lazy" />
+      <figcaption>Shoreline correctly labeled obstacle</figcaption>
+    </figure>
+    <figure>
+      <img src="assets/pred_0022.jpg" alt="Open water" loading="lazy" />
+      <figcaption>Open water with sky/water boundary</figcaption>
+    </figure>
+    <figure>
+      <img src="assets/pred_0015.jpg" alt="Marina" loading="lazy" />
+      <figcaption>Coast and boat</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ── Detection filter ── -->
+<section>
+  <h2>Obstacle Detection Filter</h2>
+  <p>
+    Raw segmentation includes the coastline. The enclosed filter keeps only blobs
+    that have open water directly above them, isolating floating obstacles.
+  </p>
+  <div class="compare-row">
+    <figure>
+      <img src="assets/preview_kope75.jpg" alt="All detections" />
+      <figcaption>No filter: coast band dominates</figcaption>
+    </figure>
+    <figure>
+      <img src="assets/preview_kope75_enclosed.jpg" alt="Enclosed mode" />
+      <figcaption>Enclosed mode: floating obstacles only (no box in this case)</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ── Tracking demo ── -->
+<section>
+  <h2>Tracking</h2>
+  <p>
+    SORT tracker with per-track Kalman filter. Each track is assigned a stable
+    color-coded ID. <code>min-hits=3</code> suppresses single-frame detections;
+    <code>max-age=20</code> keeps a track alive through up to 20 missed frames.
+  </p>
+  <div class="video-row">
+    <figure>
+      <video controls muted loop playsinline>
+        <source src="assets/demo_tracked_h264.mp4" type="video/mp4" />
+      </video>
+      <figcaption>With Kalman / SORT: stable IDs, smoothed boxes</figcaption>
+    </figure>
+    <figure>
+      <video controls muted loop playsinline>
+        <source src="assets/demo_raw_h264.mp4" type="video/mp4" />
+      </video>
+      <figcaption>Raw detector only: flickering, no IDs</figcaption>
+    </figure>
+  </div>
+
+  <figure class="full-img" style="margin-top:1.2rem;">
+    <img src="assets/tracking_demo_frame.jpg" alt="Tracking frame" />
+    <figcaption>
+      MODD2 frame: sailboat (ID 2), dinghy (ID 35), distant landmass+ship (ID 1), artifact (ID 14).
+    </figcaption>
+  </figure>
+</section>
+
+<!-- ── IMU fusion ── -->
+<section>
+  <h2>IMU Motion Compensation</h2>
+  <p>
+    MODD2 provides per-frame IMU Euler angles (roll, pitch, yaw in radians, body-to-world convention).
+    The pipeline implements rotation-induced homography compensation: between consecutive frames the
+    IMU delta is converted to a 3 × 3 planar homography <em>H = K · ΔR<sub>cam</sub> · K<sup>−1</sup></em>,
+    and each track's Kalman-predicted box is warped by <em>H</em> before IoU matching.
+    This corrects for perceived obstacle displacement caused by camera rotation, most likely induced by waves
+    and vessel maneuvers.
+  </p>
+  <p style="margin-top:.7rem;">
+    Camera-to-IMU alignment (<em>R</em><sub>cam→IMU</sub>) was computed from the MODD2 calibration
+    sequences: ground-plane PCA on stereo point clouds gives the camera's vertical axis; combined
+    with flat-ground IMU readings, a two-vector alignment yields the 3 × 3 calibration rotation.
+    The result shows that MODD2's IMU uses an NWU convention (X = bow, Y = port, Z = up).
+  </p>
+  <div class="video-row" style="margin-top:1.1rem;">
+    <figure>
+      <video controls muted loop playsinline>
+        <source src="assets/compare_no_imu.mp4" type="video/mp4" />
+      </video>
+      <figcaption>Without IMU compensation: constant-velocity Kalman predictions only (kope67, adjacent mode)</figcaption>
+    </figure>
+    <figure>
+      <video controls muted loop playsinline>
+        <source src="assets/compare_imu.mp4" type="video/mp4" />
+      </video>
+      <figcaption>With IMU compensation: predicted positions warped by H = K·ΔR·K⁻¹ before IoU matching (kope67, adjacent mode)</figcaption>
+    </figure>
+  </div>
+  <p style="margin-top:.9rem; font-size:.9rem; color:#555; font-family:system-ui,sans-serif;">
+    <strong>Conclusion:</strong> MODD2's choppy sequences are of only coastline images, and its floating-obstacle
+    sequences have almost no camera motion (≤ 0.004 rad/frame). On the sailboat sequence, IMU
+    compensation even slightly hurt tracking (33 vs 30 IDs, shorter average lifetime) because almost zero
+    homography adds more noise than it removes.
+  </p>
+</section>
+
+<!-- ── Limitations ── -->
+<section>
+  <h2>Limitations</h2>
+  <ul class="lim-list">
+    <li><strong>Single obstacle class.</strong> Boats, buoys, piers, and coastline share one label, this means that instance separation is all geometric, and overlapping vessels merge into one box.</li>
+    <li><strong>Detection range.</strong> Frames are downscaled to 512 × 384 for inference. Distant small obstacles may not survive the resize. Running at higher resolution causes the model to hallucinate obstacles on water texture, because it was trained at 512 × 384, so a real fix requires retraining at higher resolution.</li>
+    <li><strong>Constant-velocity model.</strong> The Kalman filter assumes linear motion. The movement of the ship itself can introduce target velocity. IMU rotation compensation is implemented (see above) but its benefit is limited by the dataset's lack of floating-obstacle sequences with significant camera motion.</li>
+    <li><strong>IoU-only data association.</strong> Track crossings can swap object IDs. Using appearance embeddings (DeepSORT) could improve this.</li>
+    <li><strong>In-distribution evaluation.</strong> Evaluation mIoU of 0.991 is on the split of the MaSTr1325 dataset, meaning it all has the same lighting, same sensor, and similar conditions as training. Night, glare, and fog are untested.</li>
+  </ul>
+</section>
+
+<footer>
+  <p>Brian Munoz Calonge &nbsp;·&nbsp;
+  PyTorch · <a href="https://github.com/qubvel/segmentation_models.pytorch">segmentation_models_pytorch</a> · MODD2 · MaSTr1325</p>
+</footer>
+
+<script>
+const E = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40];
+const LOSS=[0.2517,0.0514,0.03,0.0305,0.0299,0.0212,0.0278,0.0234,0.0178,0.0158,0.0149,0.0134,0.0126,0.0102,0.0095,0.0151,0.0107,0.0102,0.009,0.0081,0.0079,0.0075,0.0075,0.0078,0.0073,0.0069,0.0068,0.0061,0.0065,0.0058,0.0065,0.0058,0.0054,0.0054,0.0054,0.0056,0.0052,0.0054,0.0051,0.0053];
+const MIOU=[0.9421,0.974,0.9847,0.9736,0.9808,0.9839,0.9469,0.9842,0.9838,0.9845,0.9829,0.9869,0.9879,0.9874,0.9869,0.9862,0.9875,0.9889,0.9868,0.9896,0.9892,0.9899,0.9887,0.9893,0.9904,0.9894,0.9902,0.9904,0.9902,0.9905,0.9903,0.9904,0.9908,0.9906,0.9906,0.9906,0.9908,0.9908,0.9908,0.9909];
+const OBS=[0.8609,0.9376,0.9632,0.9374,0.9536,0.9616,0.8691,0.962,0.9627,0.9629,0.9591,0.9687,0.9715,0.97,0.9689,0.9677,0.9704,0.9739,0.9687,0.9757,0.975,0.9763,0.9735,0.9747,0.9774,0.9748,0.9771,0.9775,0.977,0.9778,0.9775,0.9778,0.9786,0.978,0.9782,0.9782,0.9785,0.9785,0.9785,0.9788];
+const WAT=[0.9733,0.9891,0.9942,0.9882,0.9926,0.9936,0.976,0.994,0.993,0.994,0.9928,0.9951,0.9953,0.9952,0.9948,0.9947,0.9951,0.9957,0.9946,0.996,0.9958,0.9962,0.9954,0.996,0.9964,0.9959,0.9962,0.9963,0.9962,0.9963,0.9962,0.9962,0.9964,0.9964,0.9964,0.9963,0.9964,0.9964,0.9964,0.9965];
+const SKY=[0.9922,0.9952,0.9965,0.9953,0.9961,0.9966,0.9956,0.9966,0.9958,0.9965,0.9968,0.9969,0.9969,0.997,0.9971,0.9963,0.9971,0.9971,0.9969,0.9972,0.997,0.9972,0.9972,0.9972,0.9974,0.9974,0.9973,0.9973,0.9974,0.9973,0.9973,0.9973,0.9973,0.9973,0.9973,0.9973,0.9974,0.9974,0.9974,0.9974];
+
+const base = {
+  responsive: true,
+  plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10, family: 'system-ui' } } } },
+  scales: {
+    x: { ticks: { font: { size: 9, family: 'system-ui' } }, title: { display: true, text: 'Epoch', font: { size: 10, family: 'system-ui' } } }
+  }
+};
+
+new Chart(document.getElementById('chartLoss'), {
+  type: 'line',
+  data: { labels: E, datasets: [
+    { label: 'Train loss', data: LOSS, borderColor: '#888', borderWidth: 1.5, pointRadius: 0, tension: .3 },
+    { label: 'Val mIoU',  data: MIOU, borderColor: '#333', borderWidth: 1.5, pointRadius: 0, tension: .3, yAxisID: 'y2', borderDash: [4,3] }
+  ]},
+  options: { ...base, scales: {
+    x: base.scales.x,
+    y:  { position: 'left',  title: { display: true, text: 'Loss', font: { size: 10, family: 'system-ui' } }, ticks: { font: { size: 9 } } },
+    y2: { position: 'right', title: { display: true, text: 'mIoU', font: { size: 10, family: 'system-ui' } }, ticks: { font: { size: 9 } }, grid: { drawOnChartArea: false }, min: 0.9, max: 1.0 }
+  }, plugins: { ...base.plugins, title: { display: true, text: 'Loss & mIoU', font: { size: 11, family: 'system-ui' } } } }
+});
+
+new Chart(document.getElementById('chartIoU'), {
+  type: 'line',
+  data: { labels: E, datasets: [
+    { label: 'Obstacle', data: OBS, borderColor: '#dc0000', borderWidth: 1.5, pointRadius: 0, tension: .3 },
+    { label: 'Water',    data: WAT, borderColor: '#0078c8', borderWidth: 1.5, pointRadius: 0, tension: .3 },
+    { label: 'Sky',      data: SKY, borderColor: '#a0c8dc', borderWidth: 1.5, pointRadius: 0, tension: .3 }
+  ]},
+  options: { ...base, scales: {
+    x: base.scales.x,
+    y: { title: { display: true, text: 'IoU', font: { size: 10, family: 'system-ui' } }, ticks: { font: { size: 9 } }, min: 0.86, max: 1.0 }
+  }, plugins: { ...base.plugins, title: { display: true, text: 'Per-class IoU', font: { size: 11, family: 'system-ui' } } } }
+});
+</script>
+</body>
+</html>
