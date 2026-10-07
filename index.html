@@ -401,8 +401,9 @@
     <img src="assets/tracking_demo_frame.jpg" alt="Tracking frame" />
     <figcaption>
       Sailboat (ID 37), dinghy (ID 39), two small buoys (IDs 16 and 40) and the distant shoreline (ID 1).
-      The sailboat keeps one ID for the whole clip; ID numbers count every track started so far,
-      including short-lived ones from glints. The ship on the horizon is too small for the segmenter at
+      ID numbers count every track started so far, including short-lived ones from glints. The sailboat
+      started as ID 2 and got a new ID when its mast began to be segmented and its box jumped from the
+      hull to the whole boat, a known weakness of IoU-only matching. The ship on the horizon is too small for the segmenter at
       512 × 384 and is missed.
     </figcaption>
   </figure>
