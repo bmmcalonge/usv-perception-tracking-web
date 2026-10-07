@@ -11,7 +11,7 @@
   <meta property="og:url" content="https://bmmcalonge.github.io/usv-perception-tracking-web/" />
   <meta property="og:title" content="Maritime Obstacle Perception: Segmentation + Kalman/SORT Tracking" />
   <meta property="og:description" content="An end-to-end USV perception pipeline: semantic segmentation (water/sky/obstacle) plus a from-scratch Kalman/SORT tracker, running on real maritime video at ~69 FPS." />
-  <meta property="og:image" content="https://bmmcalonge.github.io/usv-perception-tracking-web/assets/tracking_demo_frame.jpg" />
+  <meta property="og:image" content="https://bmmcalonge.github.io/usv-perception-tracking-web/assets/hero_kope67.jpg" />
   <meta property="og:image:width" content="1278" />
   <meta property="og:image:height" content="958" />
 
@@ -19,7 +19,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Maritime Obstacle Perception: Segmentation + Kalman/SORT Tracking" />
   <meta name="twitter:description" content="An end-to-end USV perception pipeline: semantic segmentation plus a from-scratch Kalman/SORT tracker, running on real maritime video at ~69 FPS." />
-  <meta name="twitter:image" content="https://bmmcalonge.github.io/usv-perception-tracking-web/assets/tracking_demo_frame.jpg" />
+  <meta name="twitter:image" content="https://bmmcalonge.github.io/usv-perception-tracking-web/assets/hero_kope67.jpg" />
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
@@ -52,6 +52,15 @@
       color: #555;
       font-family: system-ui, sans-serif;
     }
+    .author-line a { color: #333; }
+
+    /* ── Small data tables ── */
+    .data-table { margin: 1rem 0; overflow-x: auto; }
+    .data-table table { min-width: 560px; }
+    .data-table th { text-align: left; font-weight: 600; color: #444; padding: .4rem .6rem .4rem 0; border-bottom: 1px solid #ddd; font-size: .82rem; }
+    .data-table td { padding: .4rem .6rem .4rem 0; font-size: .85rem; }
+    .data-table td:last-child, .data-table th:last-child { text-align: right; }
+    .note { font-size: .8rem; color: #777; font-family: system-ui, sans-serif; }
     .tag-row {
       margin-top: .8rem;
       font-size: .78rem;
@@ -181,9 +190,9 @@
 
 <header>
   <h1>USV Obstacle Perception & Tracking</h1>
-  <p class="author-line">Brian Munoz Calonge</p>
+  <p class="author-line">Brian Munoz Calonge &nbsp;·&nbsp; <a href="https://github.com/bmmcalonge/usv-perception-tracking">Code on GitHub</a></p>
   <div class="tag-row">
-    <span>PyTorch</span><span>U-Net / ResNet-34</span><span>MaSTr1325</span><span>MODD2</span><span>Kalman Filter</span><span>SORT</span>
+    <span>PyTorch</span><span>U-Net / ResNet-34</span><span>MaSTr1325</span><span>MODS</span><span>MODD2</span><span>Kalman Filter</span><span>SORT</span><span>IMU</span>
   </div>
 </header>
 
@@ -197,16 +206,16 @@
     Kalman/SORT tracker handles temporal association.
   </p>
   <p>
-    The segmenter was trained on MaSTr1325 (1325 labeled coastal images, 3 classes).
-    The tracker was evaluated on MODD2 stereo sequences at ~70 FPS end-to-end on a single GPU.
+    The segmenter was trained on MaSTr1325 (1325 labeled coastal images, 3 classes) and scored on
+    the MODS benchmark with its official toolkit. The full pipeline runs on MODD2 video at 69 FPS
+    end-to-end on a single GPU.
   </p>
 
   <div class="results-row">
-    <div class="result-item"><div class="val">0.991</div><div class="desc">Val mIoU (MaSTr1325)</div></div>
-    <div class="result-item"><div class="val">0.979</div><div class="desc">Obstacle IoU</div></div>
-    <div class="result-item"><div class="val">0.996</div><div class="desc">Water IoU</div></div>
-    <div class="result-item"><div class="val">0.997</div><div class="desc">Sky IoU</div></div>
-    <div class="result-item"><div class="val">~70</div><div class="desc">FPS end-to-end (consumer GPU)</div></div>
+    <div class="result-item"><div class="val">90.3%</div><div class="desc">Obstacle F1 (MODS benchmark)</div></div>
+    <div class="result-item"><div class="val">18 px</div><div class="desc">Water-edge RMSE (MODS)</div></div>
+    <div class="result-item"><div class="val">0.991</div><div class="desc">Val mIoU (MaSTr1325, in-distribution)</div></div>
+    <div class="result-item"><div class="val">69</div><div class="desc">FPS end-to-end (RTX 5070)</div></div>
   </div>
 </section>
 
@@ -257,8 +266,8 @@
         so ~1125 training images (85% of the dataset) are enough.
       </p>
       <p>
-        ResNet-34 (~21 M parameters) was chosen over larger models to meet the
-        real-time throughput requirement of a USV perception stack. Also, U-Net's skip connections
+        ResNet-34 was chosen over larger encoders to meet the real-time throughput requirement
+        of a USV perception stack (24.5 M parameters for the whole model). Also, U-Net's skip connections
         preserve the fine spatial detail needed for sharp water/obstacle boundaries at the pixel level.
       </p>
 
@@ -294,15 +303,18 @@
     <div><canvas id="chartIoU" height="220"></canvas></div>
   </div>
   <p style="font-size:.8rem;color:#888;font-family:system-ui,sans-serif;margin-top:.5rem;">
-    mIoU plateaus above 0.99 by epoch 25. The dip at epoch 7 is a cosine LR artifact
-    interacting with aggressive augmentation early in training.
+    mIoU plateaus above 0.99 by epoch 25 (the one-epoch dip at epoch 7 recovers on the next epoch).
+    These are random-split validation numbers and are optimistic: 70 of the 198 validation images have
+    a near-identical frame in the training set, because MaSTr1325 includes near-identical frames from
+    the same recordings. The MODS benchmark below is the fair test.
   </p>
 </section>
 
 <!-- ── Segmentation results ── -->
 <section>
   <h2>Segmentation</h2>
-  <p>Predictions blended over MaSTr1325 validation images (red = obstacle, blue = water, pale blue = sky).</p>
+  <p>Predictions blended over MaSTr1325 images, two from the validation split and one from training
+    (red = obstacle, blue = water, pale blue = sky).</p>
   <div class="img-row">
     <figure>
       <img src="assets/pred_0003.jpg" alt="Coastal scene" loading="lazy" />
@@ -314,9 +326,31 @@
     </figure>
     <figure>
       <img src="assets/pred_0015.jpg" alt="Marina" loading="lazy" />
-      <figcaption>Coast and boat</figcaption>
+      <figcaption>Coast and boat (training image)</figcaption>
     </figure>
   </div>
+</section>
+
+<!-- ── MODS benchmark ── -->
+<section>
+  <h2>Benchmark: MODS</h2>
+  <p>
+    MODS (Bovcon et al., T-ITS 2021) is the standard benchmark for USV obstacle segmentation:
+    94 sequences and 8,175 annotated frames from recordings the model never saw. Instead of pixel
+    IoU, it scores what navigation needs: how accurately the water edge is placed, and whether each
+    annotated obstacle is detected, overall and inside a 15 m danger zone around the boat.
+    I ran the official toolkit on this model's masks.
+  </p>
+  <div class="data-table">
+    <table>
+      <thead><tr><th>Method</th><th>Water-edge RMSE</th><th>Obstacle F1</th><th>F1 in danger zone</th></tr></thead>
+      <tbody>
+        <tr><td>This model (U-Net / ResNet-34, MaSTr1325)</td><td>18 px</td><td>90.3%</td><td>84.8%</td></tr>
+        <tr><td>WaSR (reference result published with the toolkit)</td><td>21 px</td><td>91.4%</td><td>88.0%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Precision / recall: 92.5% / 88.1% overall and 77.0% / 94.4% inside the danger zone, so close to the boat the model rarely misses an obstacle but raises more false alarms. Water-edge RMSE counts only water/obstacle and water/land boundaries. The WaSR row is the example result published in the toolkit README, not re-run here, so treat the comparison as indicative.</p>
 </section>
 
 <!-- ── Detection filter ── -->
@@ -342,29 +376,34 @@
 <section>
   <h2>Tracking</h2>
   <p>
-    SORT tracker with per-track Kalman filter. Each track is assigned a stable
-    color-coded ID. <code>min-hits=3</code> suppresses single-frame detections;
-    <code>max-age=20</code> keeps a track alive through up to 20 missed frames.
+    SORT tracker written in NumPy: one constant-velocity Kalman filter per track, IoU cost and
+    Hungarian assignment. Each track keeps a color-coded ID. On this clip (MODD2 kope67, adjacent mode)
+    <code>min-hits=5</code> hides tracks until they've been detected five times, which suppresses
+    flicker from glints and wakes, and <code>max-age=20</code> keeps a track alive through up to
+    20 missed frames.
   </p>
   <div class="video-row">
     <figure>
       <video controls muted loop playsinline>
-        <source src="assets/demo_tracked_h264.mp4" type="video/mp4" />
+        <source src="assets/tracked_kope67.mp4" type="video/mp4" />
       </video>
-      <figcaption>With Kalman / SORT: stable IDs, smoothed boxes</figcaption>
+      <figcaption>With Kalman / SORT: persistent IDs, smoothed boxes</figcaption>
     </figure>
     <figure>
       <video controls muted loop playsinline>
-        <source src="assets/demo_raw_h264.mp4" type="video/mp4" />
+        <source src="assets/raw_kope67.mp4" type="video/mp4" />
       </video>
-      <figcaption>Raw detector only: flickering, no IDs</figcaption>
+      <figcaption>Same detections without the tracker: flicker, no IDs</figcaption>
     </figure>
   </div>
 
   <figure class="full-img" style="margin-top:1.2rem;">
-    <img src="assets/tracking_demo_frame.jpg" alt="Tracking frame" />
+    <img src="assets/hero_kope67.jpg" alt="Tracking frame" />
     <figcaption>
-      MODD2 frame: sailboat (ID 2), dinghy (ID 35), distant landmass+ship (ID 1), artifact (ID 14).
+      Sailboat (ID 37), dinghy (ID 39), two small buoys (IDs 16 and 40) and the distant shoreline (ID 1).
+      The sailboat keeps one ID for the whole clip; ID numbers count every track started so far,
+      including short-lived ones from glints. The ship on the horizon is too small for the segmenter at
+      512 × 384 and is missed.
     </figcaption>
   </figure>
 </section>
@@ -373,38 +412,69 @@
 <section>
   <h2>IMU Motion Compensation</h2>
   <p>
-    MODD2 provides per-frame IMU Euler angles (roll, pitch, yaw in radians, body-to-world convention).
-    The pipeline implements rotation-induced homography compensation: between consecutive frames the
-    IMU delta is converted to a 3 × 3 planar homography <em>H = K · ΔR<sub>cam</sub> · K<sup>−1</sup></em>,
-    and each track's Kalman-predicted box is warped by <em>H</em> before IoU matching.
-    This corrects for perceived obstacle displacement caused by camera rotation, most likely induced by waves
-    and vessel maneuvers.
+    A camera on a rocking boat makes still objects jump in the image, and a constant-velocity Kalman
+    filter can't predict that. MODD2 logs the IMU's roll, pitch and yaw for every frame. Between
+    consecutive frames, the IMU rotation is turned into an image homography
+    <em>H = K · ΔR<sub>cam</sub> · K<sup>−1</sup></em>, and each track's predicted Kalman state is
+    warped by <em>H</em> before IoU matching.
   </p>
   <p style="margin-top:.7rem;">
-    Camera-to-IMU alignment (<em>R</em><sub>cam→IMU</sub>) was computed from the MODD2 calibration
-    sequences: ground-plane PCA on stereo point clouds gives the camera's vertical axis; combined
-    with flat-ground IMU readings, a two-vector alignment yields the 3 × 3 calibration rotation.
-    The result shows that MODD2's IMU uses an NWU convention (X = bow, Y = port, Z = up).
+    The camera-to-IMU rotation was calibrated from the MODD2 calibration sequences: ground-plane PCA on
+    stereo point clouds gives the camera's "up" direction, and flat-ground IMU readings give the IMU's.
+    The bow is assumed to be the forward axis of both.
   </p>
+
+  <p style="margin-top:.9rem;"><strong>Is the IMU telling the truth?</strong> I measured each frame-to-frame
+    camera rotation from tracked features on distant scenery and compared it with the IMU, per recording session:</p>
+  <div class="data-table">
+    <table>
+      <thead><tr><th>Sequence</th><th>Agreement with camera (pitch / pan / roll)</th><th>Rotation re-fitted from video vs calibration</th><th>Image-motion error, none → IMU</th></tr></thead>
+      <tbody>
+        <tr><td>kope75</td><td>0.91 / 0.97 / 0.90</td><td>4.2° apart</td><td>6.2 → 2.3 px</td></tr>
+        <tr><td>kope81</td><td>0.83 / 0.89 / 0.91</td><td>3.4° apart</td><td>2.7 → 1.3 px</td></tr>
+        <tr><td>kope82</td><td>0.85 / 0.81 / 0.86</td><td>5.2° apart</td><td>10.9 → 3.8 px</td></tr>
+        <tr><td>kope67 (2 sequences)</td><td>≈0 / 0.83–0.99 / ≈0</td><td>no rotation fits</td><td>3.7 → 4.7, 1.6 → 1.9 px</td></tr>
+        <tr><td>kope71</td><td>≈0 / 0.79 / ≈0</td><td>no rotation fits</td><td>8.0 → 14.6 px</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    The calibration holds: three independent sessions re-derive it to within 3–5°, and compensation removes
+    half to two-thirds of the camera-induced motion. In the kope67 and kope71 sessions, though, the IMU's
+    pitch and roll don't follow the camera at all (only yaw does), so compensation there adds error.
+  </p>
+
   <div class="video-row" style="margin-top:1.1rem;">
     <figure>
       <video controls muted loop playsinline>
-        <source src="assets/compare_no_imu.mp4" type="video/mp4" />
+        <source src="assets/imu_off_kope82.mp4" type="video/mp4" />
       </video>
-      <figcaption>Without IMU compensation: constant-velocity Kalman predictions only (kope67, adjacent mode)</figcaption>
+      <figcaption>kope82 (choppy), no compensation. By the time the buoy is tracked (frame 482), 20 tracks have been started; its ID is 20.</figcaption>
     </figure>
     <figure>
       <video controls muted loop playsinline>
-        <source src="assets/compare_imu.mp4" type="video/mp4" />
+        <source src="assets/imu_on_kope82.mp4" type="video/mp4" />
       </video>
-      <figcaption>With IMU compensation: predicted positions warped by H = K·ΔR·K⁻¹ before IoU matching (kope67, adjacent mode)</figcaption>
+      <figcaption>Same clip with IMU compensation: only 9 tracks started by then (buoy is ID 9), because predictions stay on their objects.</figcaption>
     </figure>
   </div>
+
+  <div class="data-table">
+    <table>
+      <thead><tr><th>Effect on tracking (overlap of predicted box with its detection)</th><th>Camera motion</th><th>No IMU</th><th>IMU</th></tr></thead>
+      <tbody>
+        <tr><td>kope82: choppy, IMU reliable</td><td>0.65°/frame</td><td>median IoU 0.00</td><td>0.70</td></tr>
+        <tr><td>kope81: calm, IMU reliable</td><td>0.16°/frame</td><td>0.92</td><td>0.76</td></tr>
+        <tr><td>kope67: IMU pitch/roll unreliable</td><td>0.21°/frame</td><td>0.74</td><td>0.68</td></tr>
+      </tbody>
+    </table>
+  </div>
   <p style="margin-top:.9rem; font-size:.9rem; color:#555; font-family:system-ui,sans-serif;">
-    <strong>Conclusion:</strong> MODD2's choppy sequences are of only coastline images, and its floating-obstacle
-    sequences have almost no camera motion (≤ 0.004 rad/frame). On the sailboat sequence, IMU
-    compensation even slightly hurt tracking (33 vs 30 IDs, shorter average lifetime) because almost zero
-    homography adds more noise than it removes.
+    <strong>Conclusion:</strong> compensation pays off when camera motion is large and erratic. On calm water
+    the Kalman filter already predicts the slow drift, and the IMU's own noise makes things slightly worse.
+    The first version of this page reported "no benefit". That came from two bugs: the calibration was
+    discarded before use, and the warp was applied to a copy of each prediction instead of the Kalman
+    state, which counted camera motion twice. Both are fixed and covered by a self-test.
   </p>
 </section>
 
@@ -412,17 +482,20 @@
 <section>
   <h2>Limitations</h2>
   <ul class="lim-list">
-    <li><strong>Single obstacle class.</strong> Boats, buoys, piers, and coastline share one label, this means that instance separation is all geometric, and overlapping vessels merge into one box.</li>
-    <li><strong>Detection range.</strong> Frames are downscaled to 512 × 384 for inference. Distant small obstacles may not survive the resize. Running at higher resolution causes the model to hallucinate obstacles on water texture, because it was trained at 512 × 384, so a real fix requires retraining at higher resolution.</li>
-    <li><strong>Constant-velocity model.</strong> The Kalman filter assumes linear motion. The movement of the ship itself can introduce target velocity. IMU rotation compensation is implemented (see above) but its benefit is limited by the dataset's lack of floating-obstacle sequences with significant camera motion.</li>
-    <li><strong>IoU-only data association.</strong> Track crossings can swap object IDs. Using appearance embeddings (DeepSORT) could improve this.</li>
-    <li><strong>In-distribution evaluation.</strong> Evaluation mIoU of 0.991 is on the split of the MaSTr1325 dataset, meaning it all has the same lighting, same sensor, and similar conditions as training. Night, glare, and fog are untested.</li>
+    <li><strong>Single obstacle class.</strong> Boats, buoys, piers, and coastline share one label, so instance separation is purely geometric and touching vessels merge into one box. A dataset with instance labels (e.g. LaRS) and a detection head would fix this.</li>
+    <li><strong>Small and distant obstacles.</strong> Frames are downscaled to 512 × 384 for inference, so small objects near the horizon can disappear (MODS measures this directly). Running this model at higher resolution over-segments water texture it never saw in training; the real fix is retraining at higher resolution. Separately, the minimum blob area trades small-buoy recall against noise tracks from glints.</li>
+    <li><strong>Constant-velocity model.</strong> The Kalman filter assumes linear motion, so it lags sharp maneuvers. The boat's own rotation looks like target motion unless compensated; IMU compensation helps on choppy water but depends on trustworthy IMU pitch and roll, which two MODD2 sessions don't have.</li>
+    <li><strong>IoU-only data association.</strong> Crossing targets of similar size can swap IDs, and fast small targets that don't overlap between frames won't associate. Appearance embeddings (DeepSORT / BoT-SORT) would help.</li>
+    <li><strong>No tracking ground truth.</strong> MODD2 and MODS have no track-ID labels, so MOTA / IDF1 / HOTA can't be computed. Tracking claims rest on self-tests and the overlap proxy above.</li>
+    <li><strong>Evaluation scope.</strong> The 0.991 mIoU is in-distribution and inflated by near-duplicate frames; MODS is the out-of-distribution test. Night and fog are untested, and throughput was measured on a desktop RTX 5070, not an embedded board.</li>
   </ul>
 </section>
 
 <footer>
-  <p>Brian Munoz Calonge &nbsp;·&nbsp;
-  PyTorch · <a href="https://github.com/qubvel/segmentation_models.pytorch">segmentation_models_pytorch</a> · MODD2 · MaSTr1325</p>
+  <p>Brian Munoz Calonge &nbsp;·&nbsp; <a href="https://github.com/bmmcalonge/usv-perception-tracking">Code and weights</a></p>
+  <p style="margin-top:.5rem;">Built with PyTorch and <a href="https://github.com/qubvel/segmentation_models.pytorch">segmentation_models_pytorch</a>.
+  Datasets: MaSTr1325 (CC BY 4.0), MODD2 and MODS by the ViCoS lab, University of Ljubljana;
+  MODS scored with the official <a href="https://github.com/bborja/mods_evaluation">mods_evaluation</a> toolkit.</p>
 </footer>
 
 <script>
