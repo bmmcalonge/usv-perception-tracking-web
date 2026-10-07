@@ -11,7 +11,7 @@
   <meta property="og:url" content="https://bmmcalonge.github.io/usv-perception-tracking-web/" />
   <meta property="og:title" content="Maritime Obstacle Perception: Segmentation + Kalman/SORT Tracking" />
   <meta property="og:description" content="An end-to-end USV perception pipeline: semantic segmentation (water/sky/obstacle) plus a from-scratch Kalman/SORT tracker, running on real maritime video at ~69 FPS." />
-  <meta property="og:image" content="https://bmmcalonge.github.io/usv-perception-tracking-web/assets/hero_kope67.jpg" />
+  <meta property="og:image" content="https://bmmcalonge.github.io/usv-perception-tracking-web/assets/tracking_demo_frame.jpg" />
   <meta property="og:image:width" content="1278" />
   <meta property="og:image:height" content="958" />
 
@@ -19,7 +19,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Maritime Obstacle Perception: Segmentation + Kalman/SORT Tracking" />
   <meta name="twitter:description" content="An end-to-end USV perception pipeline: semantic segmentation plus a from-scratch Kalman/SORT tracker, running on real maritime video at ~69 FPS." />
-  <meta name="twitter:image" content="https://bmmcalonge.github.io/usv-perception-tracking-web/assets/hero_kope67.jpg" />
+  <meta name="twitter:image" content="https://bmmcalonge.github.io/usv-perception-tracking-web/assets/tracking_demo_frame.jpg" />
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
@@ -385,20 +385,20 @@
   <div class="video-row">
     <figure>
       <video controls muted loop playsinline>
-        <source src="assets/tracked_kope67.mp4" type="video/mp4" />
+        <source src="assets/demo_tracked_h264.mp4" type="video/mp4" />
       </video>
       <figcaption>With Kalman / SORT: persistent IDs, smoothed boxes</figcaption>
     </figure>
     <figure>
       <video controls muted loop playsinline>
-        <source src="assets/raw_kope67.mp4" type="video/mp4" />
+        <source src="assets/demo_raw_h264.mp4" type="video/mp4" />
       </video>
       <figcaption>Same detections without the tracker: flicker, no IDs</figcaption>
     </figure>
   </div>
 
   <figure class="full-img" style="margin-top:1.2rem;">
-    <img src="assets/hero_kope67.jpg" alt="Tracking frame" />
+    <img src="assets/tracking_demo_frame.jpg" alt="Tracking frame" />
     <figcaption>
       Sailboat (ID 37), dinghy (ID 39), two small buoys (IDs 16 and 40) and the distant shoreline (ID 1).
       The sailboat keeps one ID for the whole clip; ID numbers count every track started so far,
@@ -447,13 +447,13 @@
   <div class="video-row" style="margin-top:1.1rem;">
     <figure>
       <video controls muted loop playsinline>
-        <source src="assets/imu_off_kope82.mp4" type="video/mp4" />
+        <source src="assets/compare_no_imu.mp4" type="video/mp4" />
       </video>
       <figcaption>kope82 (choppy), no compensation. By the time the buoy is tracked (frame 482), 20 tracks have been started; its ID is 20.</figcaption>
     </figure>
     <figure>
       <video controls muted loop playsinline>
-        <source src="assets/imu_on_kope82.mp4" type="video/mp4" />
+        <source src="assets/compare_imu.mp4" type="video/mp4" />
       </video>
       <figcaption>Same clip with IMU compensation: only 9 tracks started by then (buoy is ID 9), because predictions stay on their objects.</figcaption>
     </figure>
